@@ -12,7 +12,7 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL }}" > .env
+          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL_STAGING }}" > .env
 
       - name: SonarQube scan
         uses: sonarsource/sonarqube-scan-action@master
