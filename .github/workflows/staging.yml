@@ -51,4 +51,4 @@ jobs:
 
       - name: Test app with wget spider
         run: |
-          wget --spider http://localhost:3000
+          wget --spider https://staging.fauzi.studentdumbways.my.id
