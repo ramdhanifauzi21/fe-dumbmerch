@@ -33,7 +33,7 @@ jobs:
           docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging .
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
           format: table
