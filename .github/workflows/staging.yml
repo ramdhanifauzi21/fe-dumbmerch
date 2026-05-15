@@ -3,9 +3,10 @@ on:
   push:
     branches:
       - staging
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -32,7 +33,7 @@ jobs:
           docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging .
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.30.0
         with:
           image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
           format: table
@@ -42,24 +43,12 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
 
-      - name: Deploy to server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 6969
-          script: |
-            cd /home/finaltask-fauzi/fe-staging
-            docker compose pull
-            docker compose up -d --force-recreate
+      - name: Deploy
+        run: |
+          cd /home/finaltask-fauzi/fe-staging
+          docker compose pull
+          docker compose up -d --force-recreate
 
       - name: Test app with wget spider
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 6969
-          script: |
-            wget --spider http://localhost:3000
+        run: |
+          wget --spider http://localhost:3000
