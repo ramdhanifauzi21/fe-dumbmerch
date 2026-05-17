@@ -1,6 +1,6 @@
 services:
   frontend:
-    build: .
+    image: registry.fauzi.studentdumbways.my.id/fe-dumbmerch:production
     container_name: fe-production
     restart: always
     ports:
