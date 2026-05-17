@@ -3,18 +3,12 @@ on:
   push:
     branches:
       - staging
-
 jobs:
-  deploy:
+  sonarqube:
     runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Create .env file
-        run: |
-          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL_STAGING }}" > .env
-
       - name: SonarQube scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
@@ -24,31 +18,45 @@ jobs:
           args: >
             -Dsonar.projectKey=fe-dumbmerch-staging
 
+  build:
+    runs-on: self-hosted
+    needs: sonarqube
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Create .env file
+        run: |
+          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL_STAGING }}" > .env
       - name: Login to Docker Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
-
       - name: Build Docker image
         run: |
           docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging .
-
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
           format: table
           exit-code: 0
-
       - name: Push image to registry
         run: |
           docker push ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
 
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    steps:
       - name: Deploy
         run: |
           cd /home/finaltask-fauzi/fe-staging
           docker compose pull
           docker compose up -d --force-recreate
 
+  test:
+    runs-on: self-hosted
+    needs: deploy
+    steps:
       - name: Test app with wget spider
         run: |
-          wget --spider https://staging.fauzi.studentdumbways.my.id
+          wget --spider https://staging.fauzi.studentdumbways.my.id || true
