@@ -4,6 +4,6 @@ services:
     container_name: fe-staging
     restart: always
     ports:
-      - "3000:3000"
-    env_file:
-      - .env
+      - "3000:8080"
+    environment:
+      - REACT_APP_BASEURL=https://api.staging.fauzi.studentdumbways.my.id/api/v1
