@@ -1,14 +1,17 @@
 name: CI/CD Staging FE
+
 on:
   push:
     branches:
       - staging
+
 jobs:
   sonarqube:
     runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
       - name: SonarQube scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
@@ -24,21 +27,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Create .env file
-        run: |
-          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL_STAGING }}" > .env
+
       - name: Login to Docker Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
       - name: Build Docker image
         run: |
           docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging .
+
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
           format: table
+          severity: CRITICAL,HIGH
           exit-code: 0
+
       - name: Push image to registry
         run: |
           docker push ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:staging
@@ -47,16 +52,26 @@ jobs:
     runs-on: self-hosted
     needs: build
     steps:
-      - name: Deploy
-        run: |
-          cd /home/fauzi/fe-staging
-          docker compose pull
-          docker compose up -d --force-recreate
+      - name: Deploy to Apps Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.APPS_HOST }}
+          username: ${{ secrets.APPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 6969
+          script: |
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+            cd /home/${{ secrets.APPS_USER }}/fe-staging
+            docker compose pull
+            docker compose up -d --force-recreate
 
   test:
     runs-on: self-hosted
     needs: deploy
     steps:
+      - name: Wait for container to be ready
+        run: sleep 10
+
       - name: Test app with wget spider
         run: |
-          wget --spider https://staging.fauzi.studentdumbways.my.id || true
+          wget --spider --server-response https://staging.fauzi.studentdumbways.my.id 2>&1 | grep "200 OK"
