@@ -1,9 +1,0 @@
-services:
-  frontend:
-    build: .
-    container_name: fe-production
-    restart: always
-    ports:
-      - "3001:80"
-    env_file:
-      - .env
