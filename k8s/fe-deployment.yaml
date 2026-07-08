@@ -17,7 +17,7 @@ spec:
         - name: registry-secret
       containers:
         - name: fe-dumbmerch
-          image: registry.fauzi.studentdumbways.my.id/fe-dumbmerch:production
+          image: registry.fauzi.studentdumbways.my.id/fe-dumbmerch:production-5087c8a
           ports:
             - containerPort: 8080
           env:
