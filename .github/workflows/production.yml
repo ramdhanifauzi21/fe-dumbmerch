@@ -1,14 +1,19 @@
 name: CI/CD Production FE
+
 on:
   push:
     branches:
       - production
+    paths-ignore:
+      - "k8s/**"
+
 jobs:
   sonarqube:
     runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
       - name: SonarQube scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
@@ -21,42 +26,53 @@ jobs:
   build:
     runs-on: self-hosted
     needs: sonarqube
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Create .env file
-        run: |
-          echo "REACT_APP_BASEURL=${{ secrets.REACT_APP_BASEURL_PRODUCTION }}" > .env
+
+      - name: Set image tag
+        id: vars
+        run: echo "image_tag=production-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Login to Docker Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:production .
+          docker build -t ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:${{ steps.vars.outputs.image_tag }} .
+
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:production
+          image-ref: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:${{ steps.vars.outputs.image_tag }}
           format: table
+          severity: CRITICAL,HIGH
           exit-code: 0
+
       - name: Push image to registry
         run: |
-          docker push ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:production
+          docker push ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:${{ steps.vars.outputs.image_tag }}
 
-  deploy:
+  update-manifest:
     runs-on: self-hosted
     needs: build
     steps:
-      - name: Deploy
-        run: |
-          cd /home/fauzi/fe-production
-          docker compose pull
-          docker compose up -d --force-recreate
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: production
 
-  test:
-    runs-on: self-hosted
-    needs: deploy
-    steps:
-      - name: Test app with wget spider
+      - name: Update image tag in deployment manifest
         run: |
-          wget --spider https://fauzi.studentdumbways.my.id || true
+          sed -i "s|image: .*/fe-dumbmerch:.*|image: ${{ secrets.DOCKER_REGISTRY }}/fe-dumbmerch:${{ needs.build.outputs.image_tag }}|g" k8s/fe-deployment.yaml
+
+      - name: Commit and push manifest update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/fe-deployment.yaml
+          git commit -m "chore: update fe-dumbmerch image to ${{ needs.build.outputs.image_tag }}" || echo "No changes to commit"
+          git push origin production
